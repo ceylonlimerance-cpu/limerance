@@ -348,6 +348,55 @@ html[data-theme="dark"] .n-amb{color:#FFE0AE}
   .big{font-size:26px}
   .search{max-width:none}
 }
+
+/* ==========================================================================
+   iPhone 13-17 layout fixes (appended: later rules win on source order)
+   ========================================================================== */
+
+/* Viewport height that also works on iOS 15, where dvh does not exist yet. */
+html{-webkit-text-size-adjust:100%}
+html,body{overflow-x:hidden;overscroll-behavior:none}
+#app{height:100vh;height:-webkit-fill-available;height:100dvh}
+#auth{height:100vh;height:-webkit-fill-available;height:100dvh;
+  padding:calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right))
+          calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left))}
+
+/* Nothing may outgrow its column. A date input reports a wide intrinsic size,
+   and without min-width:0 it stretches the grid past the screen edge. */
+input,select,textarea,button{max-width:100%;min-width:0}
+.field,.grid2>*,.grid3>*{min-width:0}
+input[type=date],input[type=month],input[type=time]{
+  -webkit-appearance:none;appearance:none;text-align:left}
+
+/* Dialogs clear the Dynamic Island and the home indicator. */
+.ov{padding:calc(18px + env(safe-area-inset-top)) calc(18px + env(safe-area-inset-right))
+           calc(18px + env(safe-area-inset-bottom)) calc(18px + env(safe-area-inset-left))}
+.modal{max-height:calc(100vh - 40px);
+  max-height:calc(100dvh - 40px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+.toast{bottom:calc(24px + env(safe-area-inset-bottom))}
+
+@media(max-width:860px){
+  /* The header must GROW by the status-bar inset, not swallow it. With
+     box-sizing:border-box the old rule left ~10px for the title on any
+     phone with a notch or Dynamic Island. */
+  header#top{height:calc(58px + env(safe-area-inset-top));
+    padding:env(safe-area-inset-top) calc(14px + env(safe-area-inset-right))
+            0 calc(14px + env(safe-area-inset-left));
+    align-items:center}
+
+  /* 16px is the threshold below which iOS zooms the page on focus. */
+  .in,input,select,textarea{font-size:16px}
+  .noteline input{font-size:15px}
+  .seg button{font-size:13px}
+
+  /* Curved edges and landscape insets. */
+  aside#side{padding-left:calc(6px + env(safe-area-inset-left));
+    padding-right:calc(6px + env(safe-area-inset-right))}
+  #view{padding:14px calc(14px + env(safe-area-inset-right)) 26px calc(14px + env(safe-area-inset-left))}
+
+  /* Toast clears the bottom nav bar as well as the home indicator. */
+  .toast{bottom:calc(74px + env(safe-area-inset-bottom))}
+}
 </style>
 </head>
 <body>
