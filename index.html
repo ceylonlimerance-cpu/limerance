@@ -397,6 +397,54 @@ input[type=date],input[type=month],input[type=time]{
   /* Toast clears the bottom nav bar as well as the home indicator. */
   .toast{bottom:calc(74px + env(safe-area-inset-bottom))}
 }
+
+/* photos and payslips */
+.av.hasPic{padding:0;overflow:hidden;background:var(--glass2)}
+.av.hasPic img{width:100%;height:100%;object-fit:cover;display:block;border-radius:inherit}
+.picbtn{border:none;background:none;padding:0;cursor:pointer;line-height:0;border-radius:99px}
+.picbtn:hover{outline:2px solid var(--stroke2);outline-offset:1px}
+.slip{border:1px solid var(--stroke);border-radius:var(--rad3);overflow:hidden}
+.slip .sh{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;
+  padding:14px 16px;border-bottom:1px solid var(--stroke)}
+.slip .cols{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.slip .cols>div{padding:14px 16px}
+.slip .cols>div+div{border-left:1px solid var(--stroke)}
+.slip .ln{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:13px}
+.slip .ln b{font-weight:600}
+.slip .tot{border-top:1px solid var(--stroke);margin-top:7px;padding-top:7px;font-weight:600}
+.slip .netbar{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:14px 16px;border-top:1px solid var(--stroke);background:var(--glass2)}
+.slip .netbar .nv{font-size:21px;font-weight:700;letter-spacing:-.02em}
+@media(max-width:860px){.slip .cols{grid-template-columns:1fr}
+  .slip .cols>div+div{border-left:none;border-top:1px solid var(--stroke)}}
+
+/* People list: five columns will never fit a phone, so each person
+   becomes a card instead. Applies to this table only. */
+@media(max-width:860px){
+  table.t.tpeople thead{display:none}
+  table.t.tpeople,table.t.tpeople tbody{display:block;width:100%}
+  table.t.tpeople tr{display:grid;grid-template-columns:minmax(0,1fr) auto;
+    gap:5px 10px;align-items:center;padding:11px 12px;margin-bottom:8px;
+    border:1px solid var(--stroke);border-radius:12px}
+  table.t.tpeople tr:last-child{margin-bottom:0}
+  table.t.tpeople td{display:block;border:none;padding:0;min-width:0}
+  table.t.tpeople td:nth-child(1){grid-area:1/1}
+  table.t.tpeople td:nth-child(4){grid-area:1/2;text-align:right}
+  table.t.tpeople td:nth-child(2){grid-area:2/1/2/3;overflow-wrap:anywhere;
+    font-size:11.5px;line-height:1.35}
+  table.t.tpeople td:nth-child(3){grid-area:3/1}
+  table.t.tpeople td:nth-child(5){grid-area:3/2}
+  table.t.tpeople tr.warn{opacity:.62}
+  table.t.tpeople .btn.sm{white-space:nowrap}
+}
+
+/* Stopgap for the other wide tables (crew, ledger, board, salaries): let the
+   card scroll sideways so nothing is unreachable. The People list above does
+   not need this because it reflows into cards. */
+@media(max-width:860px){
+  .cell:has(table.t:not(.tpeople)){overflow-x:auto}
+  table.t:not(.tpeople){min-width:520px}
+}
 </style>
 </head>
 <body>
@@ -474,8 +522,15 @@ function money(n) { return (Number(n) || 0).toLocaleString('en-LK') }
 function av(name, size) {
   var s = size || 22;
   if (!name || name === 'not allocated') return '<span class="chip">unassigned</span>';
+  var pic = S.photos && S.photos[name];
+  if (pic) return '<i class="av hasPic" style="width:' + s + 'px;height:' + s + 'px">'
+    + '<img src="' + pic + '" alt="' + esc(name) + '"></i>';
   return '<i class="av" style="background:' + colorOf(name) + ';width:' + s + 'px;height:' + s
     + 'px;font-size:' + (s < 24 ? 9.5 : 11) + 'px">' + esc(name).slice(0, 2).toUpperCase() + '</i>';
+}
+function loadPhotos(then) {
+  api('photos').then(function (p) { S.photos = p || {}; if (then) then(); })
+               .catch(function () { if (then) then(); });
 }
 function ring(pct, size, sw, fs) {
   var r = (size - sw) / 2, c = 2 * Math.PI * r;
@@ -910,7 +965,8 @@ D.dueSoon = function () {
 <script>
 /* ================= state ================= */
 var S = { user:null, weddings:[], view:'work', open:null, sub:'flow', bt:'workload',
-          q:'', busy:{}, data:null, authMode:'login', installEvt:null };
+          q:'', busy:{}, data:null, authMode:'login', installEvt:null,
+          photos:{}, pay:{ who:null, month:null, slip:null } };
 
 /* ================= auth screens ================= */
 function authView() {
@@ -1871,7 +1927,7 @@ function viewPeople() {
      + '<div class="glass cell b8"><div class="cellhead"><h3>The team</h3>'
      + '<span class="chip">' + active.length + ' signed up</span>'
      + '<button class="btn sm" style="margin-left:auto" onclick="inviteModal()">' + svg('plus') + 'Invite</button></div>'
-     + '<table class="t"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>'
+     + '<table class="t tpeople"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>'
      + us.map(function (u) {
        var mine = u.email === S.user.email;
        var badge = u.status === 'active'
@@ -1880,7 +1936,11 @@ function viewPeople() {
            ? '<span class="chip c-amb">' + (u.hasPassword ? 'invited' : 'no password yet') + '</span>'
            : '<span class="chip c-rose">switched off</span>';
        return '<tr' + (u.status === 'removed' ? ' class="warn"' : '') + '>'
-        + '<td><div class="rowf" style="gap:8px">' + av(u.name || u.email, 24)
+        + '<td><div class="rowf" style="gap:8px">'
+        + (S.user.role === 'Owner' && u.status !== 'removed'
+            ? '<button class="picbtn" title="Set photo" onclick="photoModal(&quot;'
+              + esc(u.email) + '&quot;)">' + av(u.name || u.email, 24) + '</button>'
+            : av(u.name || u.email, 24))
         + '<span style="font-weight:500">' + esc(u.name || '(not set yet)')
         + (mine ? ' <span class="tiny">you</span>' : '') + '</span></div></td>'
         + '<td class="tiny mono">' + esc(u.email) + '</td>'
@@ -2157,6 +2217,7 @@ function paintShell() {
     tabs.push(['finance','Finance','coin']);
     tabs.push(['people','People','people']);
   }
+  tabs.push(['pay','Payslips','slip']);
   tabs.push(['you','You','you']);
   var mine = S.weddings.reduce(function (a, w) { return a + w.mine }, 0);
   $('#rail').innerHTML = tabs.map(function (t) {
@@ -2168,10 +2229,13 @@ function paintShell() {
    + '<div style="min-width:0"><b>' + esc(S.user.name) + '</b><span>' + esc(S.user.role) + '</span></div>';
   $('#tbtn').innerHTML = svg(theme() === 'dark' ? 'sun' : 'moon');
   var titles = { work:'Your work', list: S.open ? S.open : 'Weddings', board:'Board',
-                 finance:'Finance', people:'People', you:'You' };
+                 finance:'Finance', people:'People', pay:'Payslips', you:'You' };
   var crumbs = { work:'Everything assigned to you', list: S.open ? 'Wedding' : 'Every job in one place',
                  board:'How the studio is doing', finance:'Profit, loss and salaries',
-                 people:'Who can open this app', you:'Your account' };
+                 people:'Who can open this app',
+                 pay: S.user && S.user.role === 'Owner' ? 'Issue and download payslips'
+                                                        : 'Your own payslips',
+                 you:'Your account' };
   $('#title').textContent = titles[S.view];
   $('#crumb').textContent = crumbs[S.view];
   $('#topr').innerHTML =
@@ -2186,6 +2250,7 @@ function render() {
   else if (S.view === 'board') viewBoard();
   else if (S.view === 'finance') viewFinance();
   else if (S.view === 'people') viewPeople();
+  else if (S.view === 'pay') viewPay();
   else if (S.view === 'you') viewYou();
   else if (S.open) openW(S.open);
   else viewList();
@@ -2195,11 +2260,14 @@ function go(v) { S.view = v; if (v !== 'list') S.open = null; render(); $('#view
 function refresh(then) {
   api('boot').then(function (b) {
     S.weddings = b.weddings; S.people = b.people;
+    if (!S.photosLoaded) { S.photosLoaded = true; loadPhotos(function () { paintShell(); }); }
     if (then) then(); else if (S.view === 'list' && S.open) openW(S.open, true); else render();
   }).catch(function () {});
 }
 
 /* ================= boot ================= */
+ICO.slip = '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/>'
+  + '<path d="M9.5 11h5"/><path d="M9.5 14.5h5"/><path d="M9.5 18h3"/>';
 ICO.coin = '<ellipse cx="12" cy="6.5" rx="7.5" ry="3.2"/>'
   + '<path d="M4.5 6.5v5c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2v-5"/>'
   + '<path d="M4.5 11.5v5c0 1.8 3.4 3.2 7.5 3.2s7.5-1.4 7.5-3.2v-5"/>';
@@ -2238,6 +2306,217 @@ if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
   window.addEventListener('load', function () {
     navigator.serviceWorker.register('./sw.js').catch(function () {});
   });
+}
+
+/* ================= profile photos ================= */
+function shrinkImage(file, side, then, fail) {
+  var fr = new FileReader();
+  fr.onerror = function () { fail('Could not read that file.') };
+  fr.onload = function () {
+    var img = new Image();
+    img.onerror = function () { fail('That does not look like an image.') };
+    img.onload = function () {
+      var k = Math.min(img.width, img.height);
+      var cv = document.createElement('canvas');
+      cv.width = side; cv.height = side;
+      var cx = cv.getContext('2d');
+      cx.fillStyle = '#111'; cx.fillRect(0, 0, side, side);
+      cx.drawImage(img, (img.width - k) / 2, (img.height - k) / 2, k, k, 0, 0, side, side);
+      var q = 0.82, url = cv.toDataURL('image/jpeg', q);
+      while (url.length > 40000 && q > 0.35) { q -= 0.12; url = cv.toDataURL('image/jpeg', q); }
+      then(url);
+    };
+    img.src = fr.result;
+  };
+  fr.readAsDataURL(file);
+}
+function photoModal(email) {
+  var who = email || S.user.email;
+  var mine = who === S.user.email;
+  api('listUsers').catch(function () { return [{ email: S.user.email, name: S.user.name }] })
+    .then(function (us) {
+      var u = us.filter(function (x) { return x.email === who })[0]
+              || { email: who, name: S.user.name };
+      var name = u.name || u.email;
+      modal('<h2>' + esc(mine ? 'Your photo' : name) + '</h2>'
+       + '<div style="display:flex;justify-content:center;padding:6px 0 16px">'
+       + av(name, 96) + '</div>'
+       + '<div class="rowf" style="gap:8px;flex-wrap:wrap">'
+       + '<button class="btn" onclick="document.getElementById(\'phIn\').click()">Choose a photo</button>'
+       + (S.photos[name] ? '<button class="btn ghost" onclick="dropPhoto(\''
+           + esc(who) + '\')">Remove</button>' : '')
+       + '<button class="btn ghost" onclick="closeOv()">Close</button></div>'
+       + '<input type="file" id="phIn" accept="image/*" style="display:none" '
+       + 'onchange="takePhoto(this,\'' + esc(who) + '\')">'
+       + '<div class="tiny" style="margin-top:12px">Any photo works. It gets cropped square and '
+       + 'shrunk to 160 pixels before it is saved, so it stays small on the sheet.</div>');
+    });
+}
+function takePhoto(inp, email) {
+  var f = inp.files && inp.files[0]; if (!f) return;
+  toast('Shrinking\u2026');
+  shrinkImage(f, 160, function (url) {
+    api('setPhoto', { email: email, dataUrl: url }).then(function () {
+      loadPhotos(function () {
+        closeOv(); toast('Photo saved');
+        if (S.view === 'people') viewPeople(); else render();
+      });
+    }).catch(function (e) { toast(e.message, true) });
+  }, function (m) { toast(m, true) });
+}
+function dropPhoto(email) {
+  api('clearPhoto', { email: email }).then(function () {
+    loadPhotos(function () {
+      closeOv(); toast('Photo removed');
+      if (S.view === 'people') viewPeople(); else render();
+    });
+  }).catch(function (e) { toast(e.message, true) });
+}
+
+/* ================= payslips ================= */
+function saveBlob(b64, name, mime) {
+  try {
+    var bin = atob(b64), n = bin.length, arr = new Uint8Array(n);
+    for (var i = 0; i < n; i++) arr[i] = bin.charCodeAt(i);
+    var url = URL.createObjectURL(new Blob([arr], { type: mime || 'application/pdf' }));
+    var a = document.createElement('a');
+    if ('download' in a) {
+      a.href = url; a.download = name; a.style.display = 'none';
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove() }, 2000);
+    } else { window.open(url, '_blank'); }
+    return true;
+  } catch (e) { toast('Could not save the file', true); return false; }
+}
+function money2(n) {
+  var v = (Math.round((Number(n) || 0) * 100) / 100).toFixed(2).split('.');
+  return v[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '.' + v[1];
+}
+function slipHtml(d) {
+  function lines(list) {
+    if (!list.length) return '<div class="ln"><span class="tiny">nothing</span><span>&mdash;</span></div>';
+    return list.map(function (x) {
+      return '<div class="ln"><span>' + esc(x.label) + '</span><span class="mono">'
+        + money2(x.amount) + '</span></div>';
+    }).join('');
+  }
+  return '<div class="slip"><div class="sh"><div>'
+   + '<div style="font-weight:600;letter-spacing:.12em">' + esc(d.company) + '</div>'
+   + '<div class="tiny">' + esc(d.address) + '</div></div>'
+   + '<div style="text-align:right"><div style="font-weight:600">Payslip</div>'
+   + '<div class="tiny">' + esc(d.monthLabel) + '</div></div></div>'
+   + '<div class="cols"><div>'
+   + '<label class="lab">Employee</label>'
+   + '<div class="rowf" style="gap:9px;margin-bottom:10px">' + av(d.employee.name, 34)
+   + '<div style="min-width:0"><b>' + esc(d.employee.name) + '</b>'
+   + '<div class="tiny">' + esc(d.employee.role || 'role not set') + '</div></div></div>'
+   + '<div class="ln"><span class="tiny">Paid on</span><span>'
+   + esc(d.paidOn || 'not yet paid') + '</span></div>'
+   + '<div class="ln"><span class="tiny">Method</span><span>' + esc(d.method || '\u2014') + '</span></div>'
+   + '<div class="ln"><span class="tiny">Paid this tax year</span><span class="mono">'
+   + money2(d.ytdGross) + '</span></div>'
+   + '</div><div>'
+   + '<label class="lab">Earnings</label>' + lines(d.earnings)
+   + '<div class="ln tot"><span>Gross</span><span class="mono">' + money2(d.gross) + '</span></div>'
+   + '<label class="lab" style="margin-top:14px;display:block">Deductions</label>' + lines(d.deductions)
+   + '<div class="ln tot"><span>Total</span><span class="mono">'
+   + money2(d.totalDeductions) + '</span></div>'
+   + '</div></div>'
+   + '<div class="netbar"><div><b>Net pay</b><div class="tiny">' + esc(d.netWords) + '</div></div>'
+   + '<div class="nv mono">' + esc(d.currency) + ' ' + money2(d.net) + '</div></div></div>';
+}
+function viewPay() {
+  var owner = S.user.role === 'Owner';
+  if (typeof DEMO !== 'undefined' && DEMO) {
+    $('#view').innerHTML = '<div class="wrap"><div class="bento"><div class="glass cell b12">'
+     + '<div class="notice n-amb"><div class="nb2"><b>Payslips need the live sheet</b>'
+     + 'Sample mode has no salary records to build one from.</div></div></div></div></div>';
+    return;
+  }
+  if (!S.pay.who) S.pay.who = owner ? (S.people[0] || S.user.name) : S.user.name;
+  spin();
+  api('payslipMonths', { name: S.pay.who }).then(function (r) {
+    var months = r.months || [];
+    if (!S.pay.month || months.indexOf(S.pay.month) === -1) S.pay.month = months[0] || null;
+    var h = '<div class="wrap"><div class="bento">'
+     + '<div class="glass cell b12"><div class="cellhead"><h3>Choose</h3></div>'
+     + '<div class="grid2">';
+    if (owner) {
+      h += '<div class="field"><label class="lab">Person</label><select class="in" onchange="payWho(this.value)">'
+        + S.people.map(function (p) {
+            return '<option value="' + esc(p) + '"' + (p === S.pay.who ? ' selected' : '') + '>'
+                 + esc(p) + '</option>';
+          }).join('') + '</select></div>';
+    } else {
+      h += '<div class="field"><label class="lab">Person</label><input class="in" value="'
+        + esc(S.user.name) + '" disabled></div>';
+    }
+    h += '<div class="field"><label class="lab">Month</label>'
+      + (months.length
+          ? '<select class="in" onchange="payMonth(this.value)">'
+            + months.map(function (m) {
+                return '<option value="' + m + '"' + (m === S.pay.month ? ' selected' : '') + '>'
+                     + m + '</option>';
+              }).join('') + '</select>'
+          : '<input class="in" value="nothing paid yet" disabled>')
+      + '</div></div>';
+    if (!months.length) {
+      h += '<div class="tiny" style="margin-top:6px">'
+        + (owner ? 'Set a salary on the Finance tab first, then a month will appear here.'
+                 : 'Nothing has been paid to you yet.') + '</div>';
+    }
+    h += '</div><div class="glass cell b12" id="slipbox"></div></div></div>';
+    $('#view').innerHTML = h;
+    if (S.pay.month) paintSlip();
+    else $('#slipbox').innerHTML = '<div class="tiny">No payslip to show.</div>';
+  }).catch(function (e) {
+    $('#view').innerHTML = '<div class="wrap"><div class="glass cell b12">'
+     + '<div class="tiny">' + esc(e.message) + '</div></div></div>';
+  });
+}
+function payWho(v) { S.pay.who = v; S.pay.month = null; viewPay() }
+function payMonth(v) { S.pay.month = v; paintSlip() }
+function paintSlip() {
+  var box = $('#slipbox'); if (!box) return;
+  box.innerHTML = '<div class="tiny">Working it out\u2026</div>';
+  api('payslip', { name: S.pay.who, month: S.pay.month }).then(function (d) {
+    S.pay.slip = d;
+    var owner = S.user.role === 'Owner';
+    box.innerHTML = slipHtml(d)
+     + '<div class="rowf" style="gap:8px;margin-top:14px;flex-wrap:wrap">'
+     + '<button class="btn" onclick="getSlipPdf()">' + svg('slip') + 'Download PDF</button>'
+     + (owner && !d.recorded
+         ? '<button class="btn ghost" onclick="issueSlip()">Record this payment</button>' : '')
+     + (d.recorded ? '<span class="chip c-brand">paid</span>' : '<span class="chip c-amb">not paid yet</span>')
+     + '</div>'
+     + (owner
+         ? '<div class="tiny" style="margin-top:10px">Amounts come from the Salaries tab and the '
+           + 'Payroll tab of your sheet. Add a Payroll row for ' + esc(S.pay.month)
+           + ' to include shoot fees, an advance or a bonus.</div>'
+         : '');
+  }).catch(function (e) { box.innerHTML = '<div class="tiny">' + esc(e.message) + '</div>' });
+}
+function getSlipPdf() {
+  toast('Building the PDF\u2026');
+  api('payslipPdf', { name: S.pay.who, month: S.pay.month }).then(function (r) {
+    if (saveBlob(r.base64, r.filename, r.mime)) toast('Downloaded');
+  }).catch(function (e) { toast(e.message, true) });
+}
+function issueSlip() {
+  var d = S.pay.slip;
+  modal('<h2>Record this payment?</h2><p class="sub">This writes ' + esc(d.currency) + ' '
+   + money2(d.net) + ' to ' + esc(S.pay.who) + ' for ' + esc(d.monthLabel)
+   + ' into the Ledger as a salary payment. Doing it twice will not pay twice.</p>'
+   + '<div class="rowf" style="margin-top:20px">'
+   + '<button class="btn ghost" onclick="closeOv()">Cancel</button>'
+   + '<button class="btn" style="flex:1" onclick="doIssueSlip()">Record payment</button></div>');
+}
+function doIssueSlip() {
+  closeOv();
+  api('issuePayslip', { name: S.pay.who, month: S.pay.month }).then(function (r) {
+    toast(r.warning ? r.warning : 'Payment recorded');
+    paintSlip();
+  }).catch(function (e) { toast(e.message, true) });
 }
 </script>
 </body></html>
