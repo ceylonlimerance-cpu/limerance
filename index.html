@@ -442,9 +442,90 @@ input[type=date],input[type=month],input[type=time]{
    card scroll sideways so nothing is unreachable. The People list above does
    not need this because it reflows into cards. */
 @media(max-width:860px){
-  .cell:has(table.t:not(.tpeople)){overflow-x:auto}
-  table.t:not(.tpeople){min-width:520px}
+  .cell:has(table.t:not(.tpeople):not(.resp)){overflow-x:auto}
+  table.t:not(.tpeople):not(.resp){min-width:520px}
 }
+
+/* Day mode: only the solid primary button sits on a dark fill, so only it
+   wants white text. Ghost and danger buttons sit on near-white and were
+   coming out invisible. */
+html[data-theme="light"] .btn.ghost{color:var(--ink)}
+html[data-theme="light"] .btn.danger{color:var(--rose)}
+html[data-theme="light"] .btn.ghost:hover{color:var(--ink)}
+
+/* ==========================================================================
+   Wide tables become one card per row on phones. Column headings are gone at
+   that width, so each value carries its own label instead.
+   ========================================================================== */
+@media(max-width:860px){
+  .cell:has(table.t.resp){overflow-x:visible}
+  table.t.resp{min-width:0}
+  table.t.resp thead{display:none}
+  table.t.resp,table.t.resp tbody,table.t.resp tr,table.t.resp td{display:block;width:auto}
+  table.t.resp tr{border:1px solid var(--stroke);border-radius:12px;
+    padding:10px 12px;margin-bottom:8px}
+  table.t.resp tr:last-child{margin-bottom:0}
+  table.t.resp tr:last-child td{border-bottom:none}
+  table.t.resp td{display:flex;align-items:center;justify-content:space-between;
+    gap:14px;padding:4px 0;border:none;min-width:0;text-align:right}
+  table.t.resp td::before{color:var(--faint);font-size:10px;letter-spacing:.08em;
+    text-transform:uppercase;font-weight:600;flex:0 0 auto;text-align:left}
+  table.t.resp td:first-child{display:block;text-align:left;font-weight:600;
+    font-size:14.5px;padding:1px 0 8px;border-bottom:1px solid var(--stroke);margin-bottom:6px}
+  table.t.resp td:empty{display:none}
+
+  /* Crew: Name, Role, Said yes, Fee, Paid, buttons */
+  .tcrew td:nth-child(2)::before{content:'Role'}
+  .tcrew td:nth-child(3)::before{content:'Said yes'}
+  .tcrew td:nth-child(4)::before{content:'Fee'}
+  .tcrew td:nth-child(5)::before{content:'Paid'}
+  .tcrew td:nth-child(6){justify-content:flex-end;padding-top:8px}
+
+  /* Board, every wedding */
+  .tboard td:nth-child(2)::before{content:'Date'}
+  .tboard td:nth-child(3)::before{content:'Late'}
+  .tboard td:nth-child(4)::before{content:'Couple owes'}
+  .tboard td:nth-child(5)::before{content:'Crew owed'}
+  .tboard td:nth-child(6)::before{content:'Third copy'}
+
+  /* Profit per wedding */
+  .tpnl td:nth-child(2)::before{content:'In'}
+  .tpnl td:nth-child(3)::before{content:'Direct cost'}
+  .tpnl td:nth-child(4)::before{content:'Contribution'}
+
+  /* Ledger */
+  .tledger td:nth-child(2)::before{content:'Category'}
+  .tledger td:nth-child(3)::before{content:'Description'}
+  .tledger td:nth-child(4)::before{content:'Wedding'}
+  .tledger td:nth-child(5)::before{content:'In'}
+  .tledger td:nth-child(6)::before{content:'Out'}
+  .tledger td:nth-child(7)::before{content:'Entered by'}
+  .tledger td:nth-child(8){justify-content:flex-end;padding-top:8px}
+
+  /* Salaries */
+  .tsal td:nth-child(2)::before{content:'Monthly'}
+  .tsal td:nth-child(3)::before{content:'On payroll'}
+  .tsal td:nth-child(4)::before{content:'This month'}
+  .tsal td:nth-child(5){justify-content:flex-end;padding-top:8px}
+}
+
+/* long-press menu, folder headings, archived cards */
+.menucol{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.mrow{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  padding:12px 14px;border-radius:var(--rad2);background:var(--glass2);
+  border:1px solid var(--stroke);color:var(--ink);font-size:14px;font-weight:500}
+.mrow svg{width:18px;height:18px;flex:0 0 18px;color:var(--sub)}
+.mrow:active{background:var(--glassHi)}
+.mrow.on{border-color:var(--brand)}
+.mrow.warn{color:var(--amber)}
+.mrow.warn svg{color:var(--amber)}
+.fhead{display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  margin:16px 0 9px;font-size:12px;font-weight:600;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--faint);background:none;border:none;padding:0}
+.fhead svg{width:15px;height:15px}
+.fhead:first-child{margin-top:0}
+.wcard{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.wcard.arch{opacity:.55}
 </style>
 </head>
 <body>
@@ -966,7 +1047,8 @@ D.dueSoon = function () {
 /* ================= state ================= */
 var S = { user:null, weddings:[], view:'work', open:null, sub:'flow', bt:'workload',
           q:'', busy:{}, data:null, authMode:'login', installEvt:null,
-          photos:{}, pay:{ who:null, month:null, slip:null } };
+          photos:{}, pay:{ who:null, month:null, slip:null },
+          folders:[], showArch:false };
 
 /* ================= auth screens ================= */
 function authView() {
@@ -1017,6 +1099,15 @@ function doAuth() {
       b.disabled = false; b.textContent = reg ? 'Create my sign-in' : 'Sign in';
       toast(e.message, true);
     });
+}
+/* The top-bar button called this, but it was never written, so signing out
+   did nothing at all. */
+function confirmSignOut() {
+  modal('<h2>Sign out?</h2><p class="sub">You will need your email and password to get back in '
+   + 'on this device. Everything you have done stays on the sheet.</p>'
+   + '<div class="rowf" style="margin-top:18px">'
+   + '<button class="btn ghost" onclick="closeOv()">Stay</button>'
+   + '<button class="btn" style="flex:1" onclick="closeOv();signOut()">Sign out</button></div>');
 }
 function signOut() {
   api('logout').catch(function () {});
@@ -1179,11 +1270,22 @@ function paintList() {
       + (S.q ? 'No couple by that name.' : 'No weddings yet.') + '</b>'
       + (S.q ? 'Check the spelling.' : 'Add the first one above.') + '</div></div>';
   } else {
-    h += '<div class="gcards">' + list.map(function (w) {
+    h += groupedCards(list);
+  }
+  $('#wlist').innerHTML = h;
+}
+function cardHtml(w) {
+  return [w].map(function (w) {
       var pct = w.total ? Math.round(w.done/w.total*100) : 0;
       var n = w.date ? Math.round((new Date(w.date+'T00:00:00') - T0)/864e5) : null;
-      return '<button class="glass cell" style="text-align:left;padding:17px 18px" onclick="openW(\''
-       + esc(w.name) + '\')">'
+      var nm = esc(w.name).replace(/'/g, "&#39;");
+      return '<button class="glass cell wcard' + (w.archived ? ' arch' : '')
+       + '" style="text-align:left;padding:17px 18px"'
+       + ' onclick="wTap(\'' + nm + '\')"'
+       + ' oncontextmenu="event.preventDefault();wMenu(\'' + nm + '\');return false"'
+       + ' onmousedown="wPress(\'' + nm + '\')" onmouseup="wRelease()" onmouseleave="wRelease()"'
+       + ' ontouchstart="wPress(\'' + nm + '\')" ontouchend="wRelease()"'
+       + ' ontouchmove="wRelease()" ontouchcancel="wRelease()">'
        + '<div class="rowf" style="align-items:flex-start">'
        + '<div style="flex:1;min-width:0"><div style="font-size:15.5px;font-weight:600;letter-spacing:-.02em;'
        + 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(w.name) + '</div>'
@@ -1201,9 +1303,7 @@ function paintList() {
        + (w.photoEd ? av(w.photoEd, 20) : '')
        + (w.videoEd ? av(w.videoEd, 20) : '')
        + '</div></button>';
-    }).join('') + '</div>';
-  }
-  var el = document.getElementById('wlist'); if (el) el.innerHTML = h;
+    }).join('');
 }
 function newWedding() {
   modal('<h2>New wedding</h2>'
@@ -1331,7 +1431,7 @@ function tabCrew(d) {
     + 'Chase them, or use the reserve.</div></div>';
   if (!d.crew.length) h += '<div class="empty"><b>No crew yet.</b>Malith allocates photographers and videographers here.</div>';
   else {
-    h += '<table class="t"><thead><tr><th>Name</th><th>Role</th><th>Said yes</th><th>Fee</th><th>Paid</th><th></th></tr></thead><tbody>'
+    h += '<table class="t resp tcrew"><thead><tr><th>Name</th><th>Role</th><th>Said yes</th><th>Fee</th><th>Paid</th><th></th></tr></thead><tbody>'
      + d.crew.map(function (c) {
        return '<tr' + (c.ok ? '' : ' class="warn"') + '>'
         + '<td><div style="font-weight:500">' + esc(c.name) + '</div>'
@@ -1384,8 +1484,26 @@ function crewDel(row, name) {
    + '}).then(function(){toast(\'Removed\');openW(S.open,true)})">Remove</button></div>');
 }
 function addCrewModal() {
+  api('freelancers').catch(function () { return [] }).then(function (list) {
+    S.freelancers = list || [];
+    paintCrewModal();
+  });
+}
+function paintCrewModal() {
+  var list = S.freelancers || [];
   modal('<h2>Add crew</h2>'
-   + '<div class="field"><label class="lab">Name</label><input class="in" id="cn"></div>'
+   + '<div class="field"><label class="lab">Name</label>'
+   + '<input class="in" id="cn" list="flist" autocomplete="off" oninput="crewPick(this.value)">'
+   + '<datalist id="flist">'
+   + list.map(function (f) {
+       return '<option value="' + esc(f.name) + '">' + esc(f.role || f.craft) + '</option>';
+     }).join('')
+   + '</datalist>'
+   + (list.length ? '<div class="tiny" style="margin-top:5px">Start typing to pull someone '
+       + 'off your freelancer list, or type a new name.</div>'
+       : '<div class="tiny" style="margin-top:5px">Fill in the Freelancers tab of your sheet '
+       + 'and their names will autocomplete here.</div>')
+   + '</div>'
    + '<div class="field"><label class="lab">Role</label><select class="in" id="cr">'
    + ['Lead photographer','Second photographer','Lead videographer','Second videographer',
       'Reserve photographer','Reserve videographer','Drone operator','Assistant']
@@ -1395,6 +1513,21 @@ function addCrewModal() {
    + '<div class="field"><label class="lab">Phone</label><input class="in" id="cp" inputmode="tel"></div></div>'
    + '<div class="rowf" style="margin-top:6px"><button class="btn ghost" onclick="closeOv()">Cancel</button>'
    + '<button class="btn" style="flex:1" onclick="saveCrew()">Add</button></div>');
+}
+/* Picking a known freelancer fills in what we already know about them. */
+function crewPick(name) {
+  var f = (S.freelancers || []).filter(function (x) {
+    return x.name.toLowerCase() === String(name || '').trim().toLowerCase();
+  })[0];
+  if (!f) return;
+  if (f.role && $('#cr')) {
+    var sel = $('#cr');
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === f.role) { sel.selectedIndex = i; break; }
+    }
+  }
+  if (f.dayRate && $('#cf') && Number($('#cf').value) === 0) $('#cf').value = f.dayRate;
+  if (f.phone && $('#cp') && !$('#cp').value) $('#cp').value = f.phone;
 }
 function saveCrew() {
   var n = $('#cn').value.trim(); if (!n) return toast('Name?', true);
@@ -1568,7 +1701,7 @@ function viewBoardPaint() {
      + '<div class="big" style="margin-top:10px;color:' + (b.crewOwed?'var(--amber)':'var(--brand)') + '">'
      + money(b.crewOwed) + '</div><div class="tiny" style="margin-top:4px">LKR</div></div>'
      + '<div class="glass cell b12"><div class="cellhead"><h3>Every wedding</h3></div>'
-     + '<table class="t"><thead><tr><th>Couple</th><th>Date</th><th>Late</th>'
+     + '<table class="t resp tboard"><thead><tr><th>Couple</th><th>Date</th><th>Late</th>'
      + '<th>Couple owes</th><th>Crew owed</th><th>Third copy</th></tr></thead><tbody>'
      + b.weddings.map(function (w) {
        return '<tr' + (w.thirdCopy ? '' : ' class="warn"') + '>'
@@ -1725,7 +1858,7 @@ function paintPnl(p) {
   var wk = Object.keys(p.byWedding);
   if (wk.length) {
     h += '<div class="glass cell b12"><div class="cellhead"><h3>What each wedding brought in</h3></div>'
-     + '<table class="t"><thead><tr><th>Wedding</th><th>In</th><th>Direct cost</th><th>Contribution</th></tr></thead><tbody>'
+     + '<table class="t resp tpnl"><thead><tr><th>Wedding</th><th>In</th><th>Direct cost</th><th>Contribution</th></tr></thead><tbody>'
      + wk.sort(function (a,b) { return (p.byWedding[b].inn - p.byWedding[b].out) - (p.byWedding[a].inn - p.byWedding[a].out) })
         .map(function (k) {
        var b = p.byWedding[k], c = b.inn - b.out;
@@ -1753,7 +1886,7 @@ function paintLedger(rows) {
    + '<span class="chip">' + rows.length + ' lines</span>'
    + '<span class="more">' + rangeLabel() + '</span></div>';
   if (!rows.length) h += '<div class="empty"><b>Nothing in this window.</b>Record something, or widen the dates.</div>';
-  else h += '<table class="t"><thead><tr><th>Date</th><th>Category</th><th>Description</th>'
+  else h += '<table class="t resp tledger"><thead><tr><th>Date</th><th>Category</th><th>Description</th>'
    + '<th>Wedding</th><th style="text-align:right">In</th><th style="text-align:right">Out</th>'
    + '<th>By</th><th></th></tr></thead><tbody>'
    + rows.map(function (r) {
@@ -1853,7 +1986,7 @@ function paintSalaries(s) {
 
    + '<div class="glass cell b12"><div class="cellhead"><h3>The team on salary</h3>'
    + '<span class="more">editors, coordinator, anyone on the payroll</span></div>'
-   + '<table class="t"><thead><tr><th>Person</th><th>Monthly (LKR)</th><th>On payroll</th>'
+   + '<table class="t resp tsal"><thead><tr><th>Person</th><th>Monthly (LKR)</th><th>On payroll</th>'
    + '<th>' + monthName(s.month) + '</th><th></th></tr></thead><tbody>'
    + s.people.map(function (p) {
      var pd = s.paid[p.name];
@@ -2259,13 +2392,17 @@ function render() {
 function go(v) { S.view = v; if (v !== 'list') S.open = null; render(); $('#view').scrollTop = 0 }
 function refresh(then) {
   api('boot').then(function (b) {
-    S.weddings = b.weddings; S.people = b.people;
+    S.weddings = b.weddings; S.people = b.people; S.folders = b.folders || [];
     if (!S.photosLoaded) { S.photosLoaded = true; loadPhotos(function () { paintShell(); }); }
     if (then) then(); else if (S.view === 'list' && S.open) openW(S.open, true); else render();
   }).catch(function () {});
 }
 
 /* ================= boot ================= */
+ICO.folder = '<path d="M3 7.5A1.5 1.5 0 0 1 4.5 6h4l2 2.5h7A1.5 1.5 0 0 1 19 10v7.5A1.5 1.5 0 0 1 17.5 19h-13A1.5 1.5 0 0 1 3 17.5z"/>';
+ICO.box = '<path d="M3 8h18v11H3z"/><path d="M3 8l2-4h14l2 4"/><path d="M10 12h4"/>';
+ICO.back = '<path d="M11 5 4 12l7 7"/><path d="M4 12h16"/>';
+ICO.pen = '<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 6.5l3 3"/>';
 ICO.slip = '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/>'
   + '<path d="M9.5 11h5"/><path d="M9.5 14.5h5"/><path d="M9.5 18h3"/>';
 ICO.coin = '<ellipse cx="12" cy="6.5" rx="7.5" ry="3.2"/>'
@@ -2291,8 +2428,12 @@ function start() {
   document.getElementById('root').innerHTML = shellHtml();
   api('boot').then(function (b) {
     S.user = { name:b.me, email:b.email, role: b.owner ? 'Owner' : 'Staff' };
-    S.weddings = b.weddings; S.people = b.people;
+    S.weddings = b.weddings; S.people = b.people; S.folders = b.folders || [];
     render();
+    if (!S.photosLoaded) {
+      S.photosLoaded = true;
+      loadPhotos(function () { if (S.user) render(); });
+    }
     startReminderLoop();
   }).catch(function (e) {
     var m = String(e && e.message || '');
@@ -2517,6 +2658,161 @@ function doIssueSlip() {
     toast(r.warning ? r.warning : 'Payment recorded');
     paintSlip();
   }).catch(function (e) { toast(e.message, true) });
+}
+
+/* ================= folders, long press, archive ================= */
+var wPressT = null, wPressed = false;
+function wPress(name) {
+  wPressed = false;
+  clearTimeout(wPressT);
+  wPressT = setTimeout(function () { wPressT = null; wPressed = true; buzz(); wMenu(name); }, 480);
+}
+function wRelease() { clearTimeout(wPressT); wPressT = null; }
+function wTap(name) {
+  if (wPressed) { wPressed = false; return; }     // that was a long press, not a tap
+  openW(name);
+}
+function findW(name) {
+  return S.weddings.filter(function (w) { return w.name === name })[0] || { name: name };
+}
+function wMenu(name) {
+  var w = findW(name);
+  var folders = S.folders || [];
+  modal('<h2>' + esc(w.name) + '</h2>'
+   + '<p class="sub">' + fmt(w.date) + (w.folder ? ' &middot; in ' + esc(w.folder) : '')
+   + (w.archived ? ' &middot; archived' : '') + '</p>'
+   + '<div class="menucol">'
+   + '<button class="mrow" onclick="closeOv();openW(\'' + q1(name) + '\')">' + svg('rings') + 'Open</button>'
+   + '<button class="mrow" onclick="editWeddingModal(\'' + q1(name) + '\')">' + svg('pen') + 'Edit details</button>'
+   + '<button class="mrow" onclick="moveModal(\'' + q1(name) + '\')">' + svg('folder') + 'Move to a folder</button>'
+   + (w.archived
+      ? '<button class="mrow" onclick="doArchive(\'' + q1(name) + '\',false)">' + svg('back') + 'Bring back</button>'
+      : '<button class="mrow warn" onclick="archiveAsk(\'' + q1(name) + '\')">' + svg('box') + 'Archive</button>')
+   + '</div>'
+   + '<div class="rowf" style="margin-top:14px"><button class="btn ghost" style="flex:1" '
+   + 'onclick="closeOv()">Close</button></div>');
+}
+function q1(v) { return String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'") }
+
+function archiveAsk(name) {
+  modal('<h2>Archive ' + esc(name) + '?</h2><p class="sub">It comes off your list, off the board '
+   + 'and stops sending reminders. Nothing is deleted: every tick, note, crew member and payment '
+   + 'stays exactly as it is, and you can bring it back any time.</p>'
+   + '<div class="rowf" style="margin-top:18px"><button class="btn ghost" onclick="closeOv()">Cancel</button>'
+   + '<button class="btn" style="flex:1" onclick="doArchive(\'' + q1(name) + '\',true)">Archive</button></div>');
+}
+function doArchive(name, on) {
+  closeOv();
+  api('archiveWedding', { name: name, on: on }).then(function () {
+    toast(on ? 'Archived' : 'Back on your list');
+    refresh(function () { S.view = 'list'; S.open = null; render(); });
+  }).catch(function (e) { toast(e.message, true) });
+}
+
+function moveModal(name) {
+  var w = findW(name), folders = S.folders || [];
+  modal('<h2>Move ' + esc(name) + '</h2>'
+   + (folders.length
+      ? '<div class="menucol">'
+        + folders.map(function (f) {
+            return '<button class="mrow' + (w.folder === f ? ' on' : '') + '" onclick="doMove(\''
+             + q1(name) + '\',\'' + q1(f) + '\')">' + svg('folder') + esc(f)
+             + (w.folder === f ? '<span class="tiny" style="margin-left:auto">in here now</span>' : '')
+             + '</button>';
+          }).join('')
+        + (w.folder ? '<button class="mrow" onclick="doMove(\'' + q1(name)
+            + '\',\'\')">' + svg('back') + 'Take out of ' + esc(w.folder) + '</button>' : '')
+        + '</div>'
+      : '<p class="sub">You have no folders yet.</p>')
+   + '<div class="field" style="margin-top:14px"><label class="lab">Or make a new one</label>'
+   + '<div class="rowf"><input class="in" id="nf" placeholder="e.g. Season 2026">'
+   + '<button class="btn" onclick="makeFolder(\'' + q1(name) + '\')">Create</button></div></div>'
+   + '<div class="rowf" style="margin-top:12px"><button class="btn ghost" style="flex:1" '
+   + 'onclick="closeOv()">Cancel</button></div>');
+}
+function doMove(name, folder) {
+  closeOv();
+  api('setFolder', { name: name, folder: folder }).then(function () {
+    toast(folder ? 'Moved to ' + folder : 'Taken out of the folder');
+    refresh(function () { render() });
+  }).catch(function (e) { toast(e.message, true) });
+}
+function makeFolder(name) {
+  var v = $('#nf').value.trim(); if (!v) return toast('Name the folder first', true);
+  api('addFolder', { name: v }).then(function (r) {
+    S.folders = r.folders || [];
+    doMove(name, v);
+  }).catch(function (e) { toast(e.message, true) });
+}
+
+function editWeddingModal(name) {
+  var w = findW(name);
+  api('wedding', { name: name }).then(function (d) {
+    var h = d.head;
+    modal('<h2>Edit ' + esc(name) + '</h2>'
+     + '<div class="field"><label class="lab">Couple</label><input class="in" id="ew_n" value="'
+     + esc(h.name) + '"></div>'
+     + '<div class="grid2"><div class="field"><label class="lab">Wedding date</label>'
+     + '<input class="in" id="ew_d" type="date" value="' + esc(h.date) + '"></div>'
+     + '<div class="field"><label class="lab">Phone</label><input class="in" id="ew_p" inputmode="tel" value="'
+     + esc(h.phone || '') + '"></div></div>'
+     + '<div class="grid2"><div class="field"><label class="lab">Venue</label>'
+     + '<input class="in" id="ew_v" value="' + esc(h.venue || '') + '"></div>'
+     + '<div class="field"><label class="lab">Package</label><input class="in" id="ew_k" value="'
+     + esc(h.pkg || '') + '"></div></div>'
+     + '<div class="grid2"><div class="field"><label class="lab">Total (LKR)</label>'
+     + '<input class="in" id="ew_t" inputmode="numeric" value="' + h.total + '"></div>'
+     + '<div class="field"><label class="lab">Received (LKR)</label>'
+     + '<input class="in" id="ew_r" inputmode="numeric" value="' + h.received + '"></div></div>'
+     + '<div class="tiny" style="margin-top:4px">Changing the couple name moves the whole checklist, '
+     + 'the crew and the money with it.</div>'
+     + '<div class="rowf" style="margin-top:14px"><button class="btn ghost" onclick="closeOv()">Cancel</button>'
+     + '<button class="btn" style="flex:1" onclick="saveWeddingEdit(\'' + q1(name) + '\')">Save</button></div>');
+  }).catch(function (e) { toast(e.message, true) });
+}
+function saveWeddingEdit(name) {
+  var next = $('#ew_n').value.trim();
+  if (!next) return toast('The couple needs a name', true);
+  api('editWedding', { name: name, newName: next, date: $('#ew_d').value,
+        phone: $('#ew_p').value, venue: $('#ew_v').value, pkg: $('#ew_k').value,
+        total: $('#ew_t').value, received: $('#ew_r').value })
+   .then(function (r) {
+     closeOv(); toast('Saved');
+     if (S.open === name) S.open = r.name;
+     refresh(function () { render() });
+   }).catch(function (e) { toast(e.message, true) });
+}
+
+/* The list, grouped into the folders you made. */
+function groupedCards(list) {
+  var folders = S.folders || [];
+  var live = list.filter(function (w) { return !w.archived });
+  var arch = list.filter(function (w) { return w.archived });
+  var out = '', used = {};
+  folders.forEach(function (f) {
+    var inF = live.filter(function (w) { return w.folder === f });
+    inF.forEach(function (w) { used[w.name] = 1 });
+    if (!inF.length) return;
+    out += folderHead(f, inF.length) + '<div class="gcards">'
+        + inF.map(cardHtml).join('') + '</div>';
+  });
+  var loose = live.filter(function (w) { return !used[w.name] });
+  if (loose.length) {
+    out += (out ? folderHead(folders.length ? 'Not in a folder' : '', loose.length) : '')
+        + '<div class="gcards">' + loose.map(cardHtml).join('') + '</div>';
+  }
+  if (arch.length) {
+    out += '<button class="fhead" onclick="S.showArch=!S.showArch;paintList()">'
+        + svg('box') + '<span>Archived</span><span class="chip">' + arch.length + '</span>'
+        + '<span class="tiny" style="margin-left:auto">' + (S.showArch ? 'hide' : 'show') + '</span></button>'
+        + (S.showArch ? '<div class="gcards">' + arch.map(cardHtml).join('') + '</div>' : '');
+  }
+  return out;
+}
+function folderHead(name, n) {
+  if (!name) return '';
+  return '<div class="fhead"><span>' + svg('folder') + '</span><span>' + esc(name)
+   + '</span><span class="chip">' + n + '</span></div>';
 }
 </script>
 </body></html>
